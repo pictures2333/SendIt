@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Index - Sendit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header Bar -->
+    <header class="bg-white shadow-md">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="text-gray-700">{{ username }}</div>
+            <a href="/logout" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md flex items-center gap-2">
+                Logout
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+            </a>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Send File Section -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4">Send File</h2>
+            <form id="uploadForm" class="space-y-4" enctype="multipart/form-data">
+                <div class="flex items-start gap-4">
+                    <div class="flex flex-col gap-4">
+                        <label class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md cursor-pointer inline-block">
+                            Choose a file
+                            <input type="file" name="file" class="hidden" id="fileInput" onchange="handleFileSelect()">
+                        </label>
+                        <button type="submit"
+                            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed" 
+                            id="sendButton"
+                            disabled>
+                            Sendit!
+                        </button>
+                    </div>
+                    <div class="flex flex-col">
+                        <span id="fileStatus" class="text-gray-500">No file selected</span>
+                        <span id="fileName" class="text-sm text-gray-600"></span>
+                    </div>
+                </div>
+                <div id="uploadProgress" class="hidden">
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div class="bg-blue-600 h-2.5 rounded-full" id="progressBar" style="width: 0%"></div>
+                    </div>
+                    <span id="progressText" class="text-sm text-gray-600">0%</span>
+                </div>
+            </form>
+        </div>
+
+        <!-- Receive File Section -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-bold mb-4">Receive File</h2>
+            <div class="flex gap-4">
+                <input type="text" 
+                    placeholder="Code" 
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="handleReceive()" 
+                    class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-md">
+                    Download
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // misc / error
+        function errormsg(msg) {
+            Swal.fire({
+              icon: "error",
+              title: msg,
+            });
+        }
+
+        // send / file selected
+        function handleFileSelect() {
+            const fileInput = document.getElementById('fileInput');
+            const fileStatus = document.getElementById('fileStatus');
+            const fileName = document.getElementById('fileName');
+            const sendButton = document.getElementById('sendButton');
+            
+            if (fileInput.files.length > 0) {
+                fileStatus.textContent = 'Selected: ';
+                fileName.textContent = fileInput.files[0].name;
+                sendButton.disabled = false;
+            } else {
+                fileStatus.textContent = 'No file selected';
+                fileName.textContent = '';
+                sendButton.disabled = true;
+            }
+        }
+
+        // send / send (upload)
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('fileInput');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const sendButton = document.getElementById('sendButton');
+
+            if (!fileInput.files.length) return;
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                uploadProgress.classList.remove('hidden');
+                sendButton.disabled = true;
+
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        progressBar.style.width = percentComplete + '%';
+                        progressText.textContent = Math.round(percentComplete) + '%';
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        let jsonResponse = JSON.parse(xhr.responseText);
+                        // show info
+                        const downloadUrl = `${window.location.origin}/api/file/download/${jsonResponse.code}`;
+                        Swal.fire({
+                          icon: "success",
+                          title: "File uploaded!",
+                          text: `Download it with code ${jsonResponse.code}`,
+                          footer: `Link: <a href="${downloadUrl}">${downloadUrl}</a>`
+                        });
+                    } else {
+                        errormsg('Upload failed');
+                    }
+                    resetForm();
+                };
+
+                xhr.onerror = function() {
+                    errormsg('Upload failed');
+                    resetForm();
+                };
+
+                xhr.open('POST', '/api/file/upload', true);
+                xhr.send(formData);
+            } catch (error) {
+                errormsg('Upload failed');
+                resetForm();
+            }
+        });
+
+        // reset all
+        function resetForm() {
+            const form = document.getElementById('uploadForm');
+            const fileStatus = document.getElementById('fileStatus');
+            const fileName = document.getElementById('fileName');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const sendButton = document.getElementById('sendButton');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+
+            form.reset();
+            fileStatus.textContent = 'No file selected';
+            fileName.textContent = '';
+            uploadProgress.classList.add('hidden');
+            sendButton.disabled = true;
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+        }
+
+        // recv / recv (download)
+        function handleReceive() {
+            const code = document.querySelector('input[type="text"]').value;
+            window.location.href=`/api/file/download/${code}`
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+services:
+  # backend
+  sendit-appserver:
+    build: ./app
+    volumes:
+      - ./app:/app
+    ports:
+      - "7000:7000"
+    environment:
+      - MINIO_HOST=
+      - MINIO_ACCESS_KEY=
+      - MINIO_SECRET_KEY=
+    command: python3 /app/app.py
+    restart: "unless-stopped"
+  # minio if needed
+  minio:
+    image: minio/minio:latest
+    volumes:
+      - ./minio/data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=root
+      - MINIO_ROOT_PASSWORD=
+    command: "server /data --console-address \":9001\""
+    restart: "unless-stopped"
